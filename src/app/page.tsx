@@ -256,7 +256,9 @@ Respond ONLY with valid JSON (no markdown):
           max_tokens: 3000,
           messages: [{
             role: 'user',
-            content: `Breakfast: ${breakfast || 'Not provided'}
+            content: `Analyze my full day of meals. Respond with ONLY valid JSON, no other text.
+
+Breakfast: ${breakfast || 'Not provided'}
 Lunch: ${lunch || 'Not provided'}
 Dinner: ${dinner || 'Not provided'}
 Snacks: ${snacks || 'Not provided'}`
@@ -265,18 +267,43 @@ Snacks: ${snacks || 'Not provided'}`
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+
       const data = await response.json();
+      
+      if (!data.content || data.content.length === 0) {
+        throw new Error('No response from API');
+      }
+
       const textContent = data.content
         .filter(item => item.type === 'text')
         .map(item => item.text)
         .join('');
       
-      const cleanedText = textContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      if (!textContent) {
+        throw new Error('Empty response');
+      }
+
+      // Clean up response - remove markdown, extra text
+      let cleanedText = textContent.trim();
+      
+      // Remove markdown code blocks
+      cleanedText = cleanedText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      // Try to find JSON object in response
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanedText = jsonMatch[0];
+      }
+      
       const parsedAnalysis = JSON.parse(cleanedText);
       setAnalysis(parsedAnalysis);
     } catch (error) {
       console.error('Error:', error);
-      alert('Had trouble analyzing. Try being more specific like "2 eggs with toast"');
+      console.error('Raw response:', error.message);
+      alert('Had trouble analyzing your meals. Please try:\n- Being more specific ("2 eggs with toast" not just "eggs")\n- Checking your internet connection\n- Trying again in a moment');
     } finally {
       setLoading(false);
     }
